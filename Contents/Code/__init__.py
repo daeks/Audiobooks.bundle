@@ -92,7 +92,7 @@ def SetupUrls(sitetype, base, lang='en'):
     ctx['AUD_ARTIST_SEARCH_URL' ]=AUD_BASE_URL + 'search?searchAuthor=%s&ipRedirectOverride=true'
     ctx['AUD_ALBUM_SEARCH_URL'  ]=AUD_BASE_URL + 'search?searchTitle=%s&x=41&ipRedirectOverride=true'
     ctx['AUD_KEYWORD_SEARCH_URL']=AUD_BASE_URL + 'search?filterby=field-keywords&advsearchKeywords=%s&x=41&ipRedirectOverride=true'
-    ctx['AUD_SEARCH_URL'        ]=AUD_BASE_URL + 'search?searchTitle={0}&searchAuthor={1}&x=41&ipRedirectOverride=true'
+    ctx['AUD_SEARCH_URL'        ]=AUD_BASE_URL + 'search?searchTitle={0}&advsearchKeywords={1}&x=41&ipRedirectOverride=true'
     return ctx
 
 
@@ -106,7 +106,7 @@ class AudiobookArtist(Agent.Artist):
     name = 'Audiobooks'
     languages = [Locale.Language.English, 'de', 'fr', 'it']
     primary_provider = True
-    accepts_from = ['com.plexapp.agents.localmedia']
+    accepts_from = ['com.plexapp.agents.localmedia', 'com.plexapp.agents.none']
 
     prev_search_provider = 0
 	
@@ -176,11 +176,17 @@ class AudiobookArtist(Agent.Artist):
         self.Log('* Artist:           %s', media.artist)
         self.Log('****************************************Not Ready For Artist Search Yet*************************')
         self.Log('------------------------------------------------------------------------------------------------')	
-        return
+        results.Append(MetadataSearchResult(id = media.id, name = media.artist, year = None, score = 100, lang = lang))
 	
 		
     def update(self, metadata, media, lang, force=False):
-        return
+        try:
+          if metadata.posters:
+            metadata.posters.clear()
+          if metadata.artist:
+            metadata.artist = media.artist
+        except:
+          pass
 
     def hasProxy(self):
         return Prefs['imageproxyurl'] is not None
@@ -206,7 +212,7 @@ class AudiobookAlbum(Agent.Album):
     name = 'Audiobooks'
     languages = [Locale.Language.English, 'de', 'fr', 'it']
     primary_provider = True
-    accepts_from = ['com.plexapp.agents.localmedia']
+    accepts_from = ['com.plexapp.agents.localmedia', 'com.plexapp.agents.none']
 
     prev_search_provider = 0
     
@@ -308,9 +314,16 @@ class AudiobookAlbum(Agent.Album):
         Log('normalizedName = %s', normalizedName)
 
 		# Chop off "unabridged"
-        normalizedName = re.sub(r"[\(\[].*?[\)\]]", "", normalizedName)
+        #normalizedName = re.sub(r"[\(\[].*?[\)\]]", "", normalizedName)
         Log('chopping bracketed text = %s', normalizedName)
-        normalizedName = normalizedName.strip()
+        if not manual:
+          tmp = normalizedName.split("-",1)
+          try:
+            normalizedName = tmp[1].strip()
+          except IndexError:
+            normalizedName = normalizedName.strip()
+        else:
+          normalizedName = normalizedName.strip()
         Log('normalizedName stripped = %s', normalizedName)
 
         self.Log('***** SEARCHING FOR "%s" - AUDIBLE v.%s *****', normalizedName, VERSION_NO)
@@ -389,6 +402,8 @@ class AudiobookAlbum(Agent.Album):
 
             if score >= LCL_IGNORE_SCORE:
                 info.append({'id': itemId, 'title': title, 'year': year, 'date': date, 'score': score, 'thumb': thumb, 'artist' : author})
+                if not manual:
+                  break
             else:
                 self.Log('# Score is below ignore boundary (%s)... Skipping!', LCL_IGNORE_SCORE)
 
@@ -405,7 +420,12 @@ class AudiobookAlbum(Agent.Album):
         i = 1
         for r in info:
             self.Log('    [%s]    %s. %s (%s) %s {%s} [%s]', r['score'], i, r['title'], r['year'], r['artist'], r['id'], r['thumb'])
-            results.Append(MetadataSearchResult(id = r['id'], name  = r['title'], score = r['score'], thumb = r['thumb'], lang = lang))
+            tmp = media.title.split("-",1)
+            try:
+              media.title = tmp[0].strip()
+            except IndexError:
+              Pass
+            results.Append(MetadataSearchResult(id = r['id'], name  = str(media.title) + ' - ' + r['title'], score = r['score'], thumb = r['thumb'], lang = lang))
 
             # If there are more than one result, and this one has a score that is >= GOOD SCORE, then ignore the rest of the results
             if not manual and len(info) > 1 and r['score'] >= GOOD_SCORE:
@@ -420,7 +440,10 @@ class AudiobookAlbum(Agent.Album):
         # Make url
         url = ctx['AUD_BOOK_INFO'] % metadata.id
 
-        html = HTML.ElementFromURL(url, sleep=REQUEST_DELAY)
+        try:
+          html = HTML.ElementFromURL(url, sleep=REQUEST_DELAY)
+        except NetworkError:
+          pass
         
         for r in html.xpath('//div[contains (@id, "adbl_page_content")]'):
             date = self.getDateFromString(self.getStringContentFromXPath(r, '//li[contains (., "{0}")]/span[2]//text()'.format(ctx['REL_DATE_INFO']).decode('utf-8')))
@@ -447,8 +470,8 @@ class AudiobookAlbum(Agent.Album):
         self.Log('synopsis:    %s', synopsis)
 		
 		# Set the date and year if found.
-        if date is not None:
-          metadata.originally_available_at = date
+        #if date is not None:
+        metadata.originally_available_at = None
 
 		# Add the genres
         metadata.genres.clear()
@@ -460,14 +483,15 @@ class AudiobookAlbum(Agent.Album):
         metadata.genres.add(genre2)
 		
 		# other metadata
-        metadata.title = title
-        metadata.studio = studio
+        #metadata.title = title
+        #metadata.studio = studio
+        metadata.studio = None
         metadata.summary = synopsis
         metadata.posters[1] = Proxy.Media(HTTP.Request(thumb))
         metadata.posters.validate_keys(thumb)
-
-        metadata.title = title
-        media.artist = author
+        
+        #metadata.title = title
+        #media.artist = author
 		
         self.writeInfo('New data', url, metadata)
 
