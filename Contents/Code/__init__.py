@@ -86,7 +86,7 @@ def SetupUrls(sitetype, base, lang='en'):
         ctx['NAR_BY_INFO'  ]='Narrated by'
 
     
-    AUD_BASE_URL='http://' + base + '/'
+    AUD_BASE_URL='https://' + base + '/'
     ctx['AUD_BOOK_INFO'         ]=AUD_BASE_URL + 'pd/%s?ipRedirectOverride=true'
     ctx['AUD_ARTIST_SEARCH_URL' ]=AUD_BASE_URL + 'search?searchAuthor=%s&ipRedirectOverride=true'
     ctx['AUD_ALBUM_SEARCH_URL'  ]=AUD_BASE_URL + 'search?searchTitle=%s&x=41&ipRedirectOverride=true'
@@ -474,12 +474,12 @@ class AudiobookAlbum(Agent.Album):
 
         # Add the genres
         metadata.genres.clear()
-        metadata.genres.add(series)
-        narrators_list = narrator.split(",")
-        for narrators in narrators_list:
-            metadata.genres.add(narrators)
-        metadata.genres.add(genre1)
-        metadata.genres.add(genre2)
+        #metadata.genres.add(series)
+        #narrators_list = narrator.split(",")
+        #for narrators in narrators_list:
+        #    metadata.genres.add(narrators)
+        #metadata.genres.add(genre1)
+        #metadata.genres.add(genre2)
 
         # other metadata
         #metadata.title = title
